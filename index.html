@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PSO Playground — Tunable Particle Swarm Optimization</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161b22;
+    --panel2: #1c2330;
+    --line: #2a3240;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --good: #3fb950;
+    --warn: #f0b429;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    height: 100%;
+  }
+  .app {
+    display: flex; gap: 16px; padding: 16px;
+    min-height: 100vh; align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .stage { flex: 0 0 auto; }
+  .canvas-wrap {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 10px; overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    background: #000;
+  }
+  canvas#view { display: block; cursor: crosshair; }
+  .overlay {
+    position: absolute; top: 10px; left: 12px;
+    font-size: 13px; line-height: 1.5;
+    text-shadow: 0 1px 3px #000;
+    pointer-events: none;
+  }
+  .overlay b { color: var(--accent); }
+  .colorbar-wrap {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 10px; font-size: 12px; color: var(--muted);
+  }
+  #colorbar { border: 1px solid var(--line); border-radius: 4px; }
+  .conv-wrap { margin-top: 12px; }
+  .conv-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  #conv {
+    display: block; width: 640px; max-width: 100%;
+    border: 1px solid var(--line); border-radius: 8px; background: #0b0f14;
+  }
+
+  .panel {
+    flex: 1 1 560px; max-width: 760px; min-width: 300px;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px 18px;
+  }
+  /* Flow the control groups into as many ~260px columns as fit, so the panel
+     is short enough to see at once instead of one tall scrolling column. */
+  .controls { columns: 260px; column-gap: 22px; }
+  .controls .group { break-inside: avoid; -webkit-column-break-inside: avoid; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 12px; margin: 0 0 16px; }
+  .group { border-top: 1px solid var(--line); padding: 11px 0; }
+  .group:first-of-type { border-top: none; padding-top: 4px; }
+  .group h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 0 0 10px;
+  }
+  label.row {
+    display: block; margin: 9px 0;
+  }
+  .row .lab { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 5px; }
+  .row .lab .val { color: var(--accent); font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  select, input[type="number"] {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px;
+    font-size: 13px;
+  }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    flex: 1 1 auto; cursor: pointer;
+    background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px;
+    padding: 9px 10px; font-size: 13px; font-weight: 600;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  button:hover { background: #253044; border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #0b1220; border-color: var(--accent); }
+  button.primary:hover { background: #79b8ff; }
+  .readout {
+    background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px; font-size: 13px;
+    font-variant-numeric: tabular-nums; line-height: 1.7;
+  }
+  .readout .k { color: var(--muted); }
+  .readout .v { color: var(--good); float: right; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 10px 0; }
+  .toggle input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+  .preset-btns button { font-weight: 500; font-size: 12px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+  .preset-side { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+  .preset-side button { font-size: 12px; padding: 8px 14px; white-space: nowrap; }
+  #presetStuck { border-color: #6e4a1f; }
+  #presetStuck:hover { border-color: var(--warn); background: #33260f; }
+  #presetEscape { border-color: #1f5e33; }
+  #presetEscape:hover { border-color: var(--good); background: #0f2a18; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="stage">
+    <div class="canvas-wrap">
+      <canvas id="view" width="640" height="640"></canvas>
+      <div class="overlay" id="overlay"></div>
+    </div>
+    <div class="colorbar-wrap">
+      <span>low z (valley)</span>
+      <canvas id="colorbar" width="200" height="12"></canvas>
+      <span>high z (peak)</span>
+    </div>
+    <div class="conv-wrap">
+      <div class="conv-title">Convergence — global-best z vs iteration (log scale)</div>
+      <canvas id="conv" width="640" height="170"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h1>PSO Playground</h1>
+        <p class="sub">Tunable Particle Swarm Optimization — watch a swarm hunt the minimum.</p>
+      </div>
+      <div class="preset-side">
+        <button id="presetStuck">Trap it</button>
+        <button id="presetEscape">Free it</button>
+      </div>
+    </div>
+    <div class="hint" style="margin: 0 0 14px;">
+      Presets — <b>Trap it</b>: small swarm, low inertia → freezes in a local pit (try it on Rastrigin).
+      <b>Free it</b>: big swarm, high inertia → breaks out. Then Reset → Play.
+    </div>
+
+    <div class="controls">
+    <div class="group">
+      <h2>Landscape</h2>
+      <label class="row">
+        <div class="lab"><span>Objective function z = f(x, y)</span></div>
+        <select id="funcSel">
+          <option value="sphere">Sphere (single bowl — easy)</option>
+          <option value="rastrigin" selected>Rastrigin (egg carton — many traps)</option>
+          <option value="ackley">Ackley (flat plateau, one hole)</option>
+          <option value="himmelblau">Himmelblau (four equal minima)</option>
+          <option value="rosenbrock">Rosenbrock (banana valley)</option>
+        </select>
+      </label>
+      <div class="toggle">
+        <input type="checkbox" id="targetMode" />
+        <label for="targetMode">Click-to-set-target mode — shifts the selected function so its minimum (and the swarm's goal) moves to where you click</label>
+      </div>
+      <div class="toggle">
+        <input type="checkbox" id="showTrue" checked />
+        <label for="showTrue">Show true minimum marker(s)</label>
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Swarm</h2>
+      <label class="row">
+        <div class="lab"><span>Swarm size (N particles)</span><span class="val" id="nVal">40</span></div>
+        <input type="range" id="nRange" min="10" max="1000" step="10" value="40" />
+      </label>
+      <label class="row">
+        <div class="lab"><span>Speed (iterations / second)</span><span class="val" id="spfVal">4</span></div>
+        <input type="range" id="spfRange" min="1" max="60" step="1" value="4" />
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>PSO coefficients</h2>
+      <label class="row">
+        <div class="lab"><span>Inertia w (momentum / exploration)</span><span class="val" id="wVal">0.40</span></div>
+        <input type="range" id="wRange" min="0" max="1.2" step="0.01" value="0.40" />
+      </label>
+      <label class="row">
+        <div class="lab"><span>c1 — cognitive (pull to own best)</span><span class="val" id="c1Val">1.50</span></div>
+        <input type="range" id="c1Range" min="0" max="3" step="0.05" value="1.50" />
+      </label>
+      <label class="row">
+        <div class="lab"><span>c2 — social (pull to global best)</span><span class="val" id="c2Val">1.50</span></div>
+        <input type="range" id="c2Range" min="0" max="3" step="0.05" value="1.50" />
+      </label>
+      <label class="row">
+        <div class="lab"><span>Vmax (velocity clamp, % of domain)</span><span class="val" id="vmaxVal">15%</span></div>
+        <input type="range" id="vmaxRange" min="1" max="100" step="1" value="15" />
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Run</h2>
+      <div class="btns">
+        <button class="primary" id="playBtn">▶ Play</button>
+        <button id="stepBtn">Step</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+      <label class="row" style="margin-top:14px;">
+        <div class="lab"><span>Random seed (reproducible runs)</span></div>
+        <input type="number" id="seedInput" value="1" />
+      </label>
+    </div>
+
+    <div class="group">
+      <h2>Readout</h2>
+      <div class="readout">
+        <div><span class="k">Iteration</span><span class="v" id="roIter">0</span></div>
+        <div><span class="k">Global best z</span><span class="v" id="roBest">—</span></div>
+        <div><span class="k">Best position</span><span class="v" id="roPos">—</span></div>
+        <div><span class="k">True minimum z</span><span class="v" id="roTrue">—</span></div>
+      </div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ------------------------------------------------------------------
+//  Seedable RNG (mulberry32) — so a "stuck" run is reproducible.
+// ------------------------------------------------------------------
+function makeRng(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ------------------------------------------------------------------
+//  Objective functions.  Each carries its own domain box and known
+//  global minimum (for the reference marker + readout).
+//  Think of the domain as your search bounds; particles are clamped
+//  to it just like variable limits in a constrained OPF.
+// ------------------------------------------------------------------
+const FUNCS = {
+  sphere: {
+    name: "Sphere",
+    f: (x, y) => x*x + y*y,
+    domain: [-5, 5, -5, 5],
+    minima: [[0, 0]],
+  },
+  rastrigin: {
+    name: "Rastrigin",
+    f: (x, y) => 20 + (x*x - 10*Math.cos(2*Math.PI*x)) + (y*y - 10*Math.cos(2*Math.PI*y)),
+    domain: [-5.12, 5.12, -5.12, 5.12],
+    minima: [[0, 0]],
+  },
+  ackley: {
+    name: "Ackley",
+    f: (x, y) => {
+      const a = 20, b = 0.2, c = 2*Math.PI;
+      return -a*Math.exp(-b*Math.sqrt(0.5*(x*x + y*y)))
+             - Math.exp(0.5*(Math.cos(c*x) + Math.cos(c*y))) + a + Math.E;
+    },
+    domain: [-5, 5, -5, 5],
+    minima: [[0, 0]],
+  },
+  himmelblau: {
+    name: "Himmelblau",
+    f: (x, y) => Math.pow(x*x + y - 11, 2) + Math.pow(x + y*y - 7, 2),
+    domain: [-5, 5, -5, 5],
+    minima: [[3, 2], [-2.805118, 3.131312], [-3.779310, -3.283186], [3.584428, -1.848126]],
+  },
+  rosenbrock: {
+    name: "Rosenbrock",
+    f: (x, y) => Math.pow(1 - x, 2) + 100*Math.pow(y - x*x, 2),
+    domain: [-2, 2, -1, 3],
+    minima: [[1, 1]],
+  },
+};
+
+// Click-to-target works by SHIFTING the selected function so its global
+// minimum lands on the clicked point — the whole landscape (bumps, local pits)
+// slides with it. So "chase my click" on Rastrigin still fights the egg-carton.
+
+// ------------------------------------------------------------------
+//  Viridis-ish colormap (5 anchors, linear interp).  Dark = low z.
+// ------------------------------------------------------------------
+const VIRIDIS = [
+  [68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]
+];
+function colormap(t) {
+  if (!isFinite(t)) t = 0;          // guard against NaN (would index the palette out of bounds)
+  t = Math.max(0, Math.min(1, t));
+  const s = t * (VIRIDIS.length - 1);
+  const i = Math.floor(s), fr = s - i;
+  const a = VIRIDIS[i], b = VIRIDIS[Math.min(i + 1, VIRIDIS.length - 1)];
+  return [a[0] + (b[0]-a[0])*fr, a[1] + (b[1]-a[1])*fr, a[2] + (b[2]-a[2])*fr];
+}
+
+// ------------------------------------------------------------------
+//  Canvas / rendering
+// ------------------------------------------------------------------
+const view = document.getElementById("view");
+const ctx = view.getContext("2d");
+const W = view.width, H = view.height;
+
+let landscapeImg = null;   // cached heatmap (ImageData) — redrawn only when function changes
+let zmin = 0, zmax = 1;
+
+function pixelToWorld(px, py, dom) {
+  const [x0, x1, y0, y1] = dom;
+  const x = x0 + (px / W) * (x1 - x0);
+  const y = y1 - (py / H) * (y1 - y0);   // flip y (screen y grows downward)
+  return [x, y];
+}
+function worldToPixel(x, y, dom) {
+  const [x0, x1, y0, y1] = dom;
+  const px = ((x - x0) / (x1 - x0)) * W;
+  const py = (1 - (y - y0) / (y1 - y0)) * H;
+  return [px, py];
+}
+
+// Render the static landscape into an ImageData buffer once per function.
+function renderLandscape(fn) {
+  const dom = fn.domain;
+  // First pass: find z range over the grid for normalization.
+  let lo = Infinity, hi = -Infinity;
+  const step = 2; // sample every 2px for speed on the min/max pass
+  for (let py = 0; py < H; py += step) {
+    for (let px = 0; px < W; px += step) {
+      const [x, y] = pixelToWorld(px, py, dom);
+      const z = fn.f(x, y);
+      if (z < lo) lo = z; if (z > hi) hi = z;
+    }
+  }
+  zmin = lo; zmax = hi;
+  const span = (hi - lo) || 1;
+
+  const img = ctx.createImageData(W, H);
+  const data = img.data;
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const [x, y] = pixelToWorld(px, py, dom);
+      const z = fn.f(x, y);
+      // power scaling (^0.4) pulls out low-value structure (local pits).
+      // Clamp to [0,1] first: the coarse min/max pass can miss the true minimum
+      // (e.g. a click-target between samples), so (z - lo) can go slightly
+      // negative here, and Math.pow(negative, 0.4) would be NaN.
+      const nrm = Math.min(1, Math.max(0, (z - lo) / span));
+      const t = Math.pow(nrm, 0.4);
+      const [r, g, b] = colormap(t);
+      const idx = (py * W + px) * 4;
+      data[idx] = r; data[idx+1] = g; data[idx+2] = b; data[idx+3] = 255;
+    }
+  }
+  landscapeImg = img;
+}
+
+// ------------------------------------------------------------------
+//  PSO state
+// ------------------------------------------------------------------
+let particles = [];
+let gbest = { x: 0, y: 0, val: Infinity };
+let iter = 0;
+let rng = makeRng(1);
+let baseFn = FUNCS.rastrigin;              // the function picked in the dropdown
+let target = { x: 0, y: 0, set: false };   // clicked target point (world coords)
+let currentFn = baseFn;                    // = baseFn, or baseFn shifted onto the target
+let history = [];                           // global-best z after each iteration (for the convergence plot)
+
+// Build the active objective: base function, optionally shifted so its global
+// minimum sits on the clicked target. Domain is unchanged; the minima markers
+// move with the shift so the red crosshair follows your click.
+function makeCurrentFn() {
+  if (!targetMode.checked || !target.set) return baseFn;
+  const m0 = baseFn.minima[0];
+  const dx = target.x - m0[0], dy = target.y - m0[1];
+  return {
+    name: baseFn.name + " → target",
+    f: (x, y) => baseFn.f(x - dx, y - dy),
+    domain: baseFn.domain,
+    minima: baseFn.minima.map(m => [m[0] + dx, m[1] + dy]),
+  };
+}
+
+function initSwarm() {
+  const dom = currentFn.domain;
+  const [x0, x1, y0, y1] = dom;
+  const N = +nRange.value;
+  particles = [];
+  gbest = { x: 0, y: 0, val: Infinity };
+  iter = 0;
+  for (let i = 0; i < N; i++) {
+    const x = x0 + rng() * (x1 - x0);
+    const y = y0 + rng() * (y1 - y0);
+    const val = currentFn.f(x, y);
+    const p = {
+      x, y,
+      rx0: x, ry0: y,            // render-from position (for smooth glide between steps)
+      vx: (rng() - 0.5) * (x1 - x0) * 0.1,
+      vy: (rng() - 0.5) * (y1 - y0) * 0.1,
+      px: x, py: y, pbest: val,   // personal best
+    };
+    particles.push(p);
+    if (val < gbest.val) gbest = { x, y, val };
+  }
+  history = [gbest.val];          // iteration 0 = best of the initial scatter
+  updateReadout();
+}
+
+// One PSO iteration — this is the whole algorithm.
+function stepSwarm() {
+  const dom = currentFn.domain;
+  const [x0, x1, y0, y1] = dom;
+  const w  = +wRange.value;
+  const c1 = +c1Range.value;
+  const c2 = +c2Range.value;
+  const vmax = (+vmaxRange.value / 100) * Math.max(x1 - x0, y1 - y0);
+
+  for (const p of particles) {
+    p.rx0 = p.x; p.ry0 = p.y;   // remember where this step starts, for smooth rendering
+    const r1 = rng(), r2 = rng();
+    const r3 = rng(), r4 = rng();
+    // v = w*v + c1*r1*(pbest - x) + c2*r2*(gbest - x)
+    p.vx = w*p.vx + c1*r1*(p.px - p.x) + c2*r2*(gbest.x - p.x);
+    p.vy = w*p.vy + c1*r3*(p.py - p.y) + c2*r4*(gbest.y - p.y);
+    // velocity clamp
+    p.vx = Math.max(-vmax, Math.min(vmax, p.vx));
+    p.vy = Math.max(-vmax, Math.min(vmax, p.vy));
+    // move
+    p.x += p.vx; p.y += p.vy;
+    // clamp to bounds (reflect velocity at walls so they don't stick)
+    if (p.x < x0) { p.x = x0; p.vx *= -0.5; }
+    if (p.x > x1) { p.x = x1; p.vx *= -0.5; }
+    if (p.y < y0) { p.y = y0; p.vy *= -0.5; }
+    if (p.y > y1) { p.y = y1; p.vy *= -0.5; }
+    // evaluate & update bests
+    const val = currentFn.f(p.x, p.y);
+    if (val < p.pbest) { p.pbest = val; p.px = p.x; p.py = p.y; }
+    if (val < gbest.val) { gbest = { x: p.x, y: p.y, val }; }
+  }
+  iter++;
+  history.push(gbest.val);        // one point per iteration for the convergence plot
+}
+
+// ------------------------------------------------------------------
+//  Drawing each frame
+// ------------------------------------------------------------------
+function draw(frac) {
+  frac = (frac === undefined) ? 1 : frac;
+  if (landscapeImg) ctx.putImageData(landscapeImg, 0, 0);
+  const dom = currentFn.domain;
+
+  // true minima markers
+  if (showTrue.checked) {
+    for (const [mx, my] of currentFn.minima) {
+      const [px, py] = worldToPixel(mx, my, dom);
+      ctx.strokeStyle = "rgba(255,80,80,0.95)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, 9, 0, 2*Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px-13, py); ctx.lineTo(px+13, py);
+      ctx.moveTo(px, py-13); ctx.lineTo(px, py+13); ctx.stroke();
+    }
+  }
+
+  // particles — rendered at an interpolated position between last step and this
+  // step, so slow speeds look like smooth gliding rather than teleporting.
+  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  for (const p of particles) {
+    const rx = p.rx0 + (p.x - p.rx0) * frac;
+    const ry = p.ry0 + (p.y - p.ry0) * frac;
+    const [px, py] = worldToPixel(rx, ry, dom);
+    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, 2*Math.PI); ctx.fill();
+  }
+
+  // global best marker
+  const [gx, gy] = worldToPixel(gbest.x, gbest.y, dom);
+  ctx.strokeStyle = "#ffd23f"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(gx, gy, 6, 0, 2*Math.PI); ctx.stroke();
+
+  overlay.innerHTML = `<b>${currentFn.name}</b> &nbsp; iter <b>${iter}</b> &nbsp; best z <b>${gbest.val.toExponential(2)}</b>`;
+}
+
+function updateReadout() {
+  roIter.textContent = iter;
+  roBest.textContent = isFinite(gbest.val) ? gbest.val.toExponential(4) : "—";
+  roPos.textContent = isFinite(gbest.val) ? `(${gbest.x.toFixed(3)}, ${gbest.y.toFixed(3)})` : "—";
+  const trueZ = currentFn.f(currentFn.minima[0][0], currentFn.minima[0][1]);
+  roTrue.textContent = trueZ.toExponential(2);
+}
+
+// ------------------------------------------------------------------
+//  Convergence plot: global-best z vs iteration, on a log y-axis.
+//  A flat line = the swarm is stuck; a step down = it escaped a local pit.
+// ------------------------------------------------------------------
+function drawConv() {
+  const w = conv.width, h = conv.height;
+  convCtx.clearRect(0, 0, w, h);
+  convCtx.fillStyle = "#0b0f14"; convCtx.fillRect(0, 0, w, h);
+  const padL = 52, padR = 12, padT = 12, padB = 22;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const n = history.length;
+  if (n < 1) return;
+
+  // log10 of each best value; clamp a floor so exact-zero minima stay on-chart.
+  const floor = 1e-10;
+  const lg = v => Math.log10(Math.max(v, floor));
+  let ymin = Infinity, ymax = -Infinity;
+  for (const v of history) { const lv = lg(v); if (lv < ymin) ymin = lv; if (lv > ymax) ymax = lv; }
+  if (ymin === ymax) { ymin -= 1; ymax += 1; }
+  ymin -= 0.25; ymax += 0.25;
+
+  const X = i => padL + (n <= 1 ? 0 : (i / (n - 1)) * plotW);
+  const Y = lv => padT + (1 - (lv - ymin) / (ymax - ymin)) * plotH;
+
+  // horizontal gridlines at integer powers of ten, labelled 1e-6, 1e-3, ...
+  convCtx.font = "10px monospace"; convCtx.textBaseline = "middle";
+  for (let p = Math.ceil(ymin); p <= Math.floor(ymax); p++) {
+    const yy = Y(p);
+    convCtx.strokeStyle = "#1c2330"; convCtx.lineWidth = 1;
+    convCtx.beginPath(); convCtx.moveTo(padL, yy); convCtx.lineTo(w - padR, yy); convCtx.stroke();
+    convCtx.fillStyle = "#6b7686"; convCtx.fillText("1e" + p, 6, yy);
+  }
+
+  // the convergence curve (stride so very long runs stay fast)
+  const stride = Math.max(1, Math.floor(n / plotW));
+  convCtx.strokeStyle = "#58a6ff"; convCtx.lineWidth = 2;
+  convCtx.beginPath();
+  let first = true;
+  for (let i = 0; i < n; i += stride) {
+    const xx = X(i), yy = Y(lg(history[i]));
+    if (first) { convCtx.moveTo(xx, yy); first = false; } else convCtx.lineTo(xx, yy);
+  }
+  // always include the final point
+  convCtx.lineTo(X(n - 1), Y(lg(history[n - 1])));
+  convCtx.stroke();
+
+  convCtx.fillStyle = "#6b7686"; convCtx.textBaseline = "alphabetic";
+  convCtx.fillText("iteration " + (n - 1), padL, h - 7);
+}
+
+// ------------------------------------------------------------------
+//  Animation loop
+// ------------------------------------------------------------------
+let playing = false;
+let acc = 0;              // accumulated ms since last committed step
+let lastT = performance.now();
+function loop(now) {
+  const dt = now - lastT; lastT = now;
+  const interval = 1000 / (+spfRange.value);   // ms between iterations
+  let frac = 1;
+  if (playing) {
+    acc += dt;
+    let steps = 0;
+    while (acc >= interval && steps < 200) {    // cap to avoid freeze after a long pause
+      stepSwarm(); acc -= interval; steps++;
+    }
+    if (steps > 0) updateReadout();
+    frac = Math.min(1, acc / interval);         // partial progress toward the next step
+  }
+  draw(frac);
+  drawConv();
+  requestAnimationFrame(loop);
+}
+
+// ------------------------------------------------------------------
+//  Wiring up the controls
+// ------------------------------------------------------------------
+const overlay = document.getElementById("overlay");
+const nRange = document.getElementById("nRange");
+const wRange = document.getElementById("wRange");
+const c1Range = document.getElementById("c1Range");
+const c2Range = document.getElementById("c2Range");
+const vmaxRange = document.getElementById("vmaxRange");
+const spfRange = document.getElementById("spfRange");
+const funcSel = document.getElementById("funcSel");
+const targetMode = document.getElementById("targetMode");
+const showTrue = document.getElementById("showTrue");
+const seedInput = document.getElementById("seedInput");
+const playBtn = document.getElementById("playBtn");
+const conv = document.getElementById("conv");
+const convCtx = conv.getContext("2d");
+
+const roIter = document.getElementById("roIter");
+const roBest = document.getElementById("roBest");
+const roPos = document.getElementById("roPos");
+const roTrue = document.getElementById("roTrue");
+
+// live slider labels
+function bindLabel(rng, el, fmt) {
+  const upd = () => el.textContent = fmt(+rng.value);
+  rng.addEventListener("input", upd); upd();
+}
+bindLabel(nRange, document.getElementById("nVal"), v => v);
+bindLabel(wRange, document.getElementById("wVal"), v => v.toFixed(2));
+bindLabel(c1Range, document.getElementById("c1Val"), v => v.toFixed(2));
+bindLabel(c2Range, document.getElementById("c2Val"), v => v.toFixed(2));
+bindLabel(vmaxRange, document.getElementById("vmaxVal"), v => v + "%");
+bindLabel(spfRange, document.getElementById("spfVal"), v => v);
+
+function fullReset() {
+  currentFn = makeCurrentFn();     // sync to current base function + target + mode
+  rng = makeRng(+seedInput.value | 0 || 1);
+  renderLandscape(currentFn);
+  initSwarm();
+  // Stop playback so the fresh, scattered swarm is actually visible. On easy
+  // landscapes (e.g. the click-target parabola) the swarm re-converges within
+  // a fraction of a second, so without pausing a Reset looks like a no-op.
+  playing = false;
+  playBtn.textContent = "▶ Play";
+  playBtn.classList.add("primary");
+}
+
+// Live swarm resize: add or remove particles on the fly, so dragging the
+// slider changes the population mid-run without wiping the current search.
+function resizeSwarm() {
+  const N = +nRange.value;
+  const [x0, x1, y0, y1] = currentFn.domain;
+  while (particles.length < N) {
+    const x = x0 + rng()*(x1 - x0), y = y0 + rng()*(y1 - y0);
+    const val = currentFn.f(x, y);
+    particles.push({ x, y, rx0: x, ry0: y,
+      vx: (rng()-0.5)*(x1-x0)*0.1, vy: (rng()-0.5)*(y1-y0)*0.1,
+      px: x, py: y, pbest: val });
+    if (val < gbest.val) gbest = { x, y, val };
+  }
+  if (particles.length > N) particles.length = N;   // shrink
+  updateReadout();
+}
+nRange.addEventListener("input", resizeSwarm);
+
+// Function dropdown now stays live even in target mode (e.g. Rastrigin + target).
+funcSel.addEventListener("change", () => {
+  baseFn = FUNCS[funcSel.value];
+  fullReset();                 // rebuilds currentFn, keeping the target if one is set
+});
+
+targetMode.addEventListener("change", fullReset);
+
+view.addEventListener("click", (e) => {
+  if (!targetMode.checked) return;
+  const rect = view.getBoundingClientRect();
+  const px = (e.clientX - rect.left) * (W / rect.width);
+  const py = (e.clientY - rect.top) * (H / rect.height);
+  const [x, y] = pixelToWorld(px, py, currentFn.domain);
+  target.x = x; target.y = y; target.set = true;
+  currentFn = makeCurrentFn();           // base function shifted onto the click
+  renderLandscape(currentFn);
+  // keep the swarm where it is; just re-evaluate against the shifted landscape
+  gbest = { x: 0, y: 0, val: Infinity };
+  for (const p of particles) {
+    const val = currentFn.f(p.x, p.y);
+    p.pbest = val; p.px = p.x; p.py = p.y;
+    if (val < gbest.val) gbest = { x: p.x, y: p.y, val };
+  }
+  updateReadout();
+});
+
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
+  playBtn.classList.toggle("primary", !playing);
+});
+document.getElementById("stepBtn").addEventListener("click", () => {
+  stepSwarm(); updateReadout();
+});
+document.getElementById("resetBtn").addEventListener("click", fullReset);
+seedInput.addEventListener("change", fullReset);
+
+// presets
+document.getElementById("presetStuck").addEventListener("click", () => {
+  nRange.value = 15; wRange.value = 0.25; c1Range.value = 0.8; c2Range.value = 2.5; vmaxRange.value = 8;
+  [nRange,wRange,c1Range,c2Range,vmaxRange].forEach(r => r.dispatchEvent(new Event("input")));
+  fullReset();
+});
+document.getElementById("presetEscape").addEventListener("click", () => {
+  nRange.value = 200; wRange.value = 0.9; c1Range.value = 1.5; c2Range.value = 1.5; vmaxRange.value = 25;
+  [nRange,wRange,c1Range,c2Range,vmaxRange].forEach(r => r.dispatchEvent(new Event("input")));
+  fullReset();
+});
+
+// colorbar legend
+(function drawColorbar() {
+  const cb = document.getElementById("colorbar");
+  const cctx = cb.getContext("2d");
+  for (let x = 0; x < cb.width; x++) {
+    const [r, g, b] = colormap(x / (cb.width - 1));
+    cctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+    cctx.fillRect(x, 0, 1, cb.height);
+  }
+})();
+
+// go
+fullReset();
+lastT = performance.now();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
