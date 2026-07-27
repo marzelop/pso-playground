@@ -1,5 +1,10 @@
 # PSO Playground
 
++![License](https://img.shields.io/github/license/panas-bhattarai/pso-playground)
++![GitHub Pages](https://img.shields.io/badge/demo-live-brightgreen)
++![Made with](https://img.shields.io/badge/vanilla-JS%20%2B%20Canvas-yellow)
++
+
 An interactive, tunable demonstration of **Particle Swarm Optimization (PSO)** — watch a swarm of particles hunt the minimum of a 2‑D function in real time, and *feel* how the algorithm's parameters change its behaviour.
 
 **▶ Live demo: https://panas-bhattarai.github.io/pso-playground/**
