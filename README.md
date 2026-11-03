@@ -21,6 +21,7 @@ It is a single self‑contained `index.html` (vanilla JavaScript + HTML Canvas).
 - **Tune the swarm live** — swarm size (10–1000), inertia $w$, cognitive/social pulls $c_1, c_2$, velocity clamp $V_{\max}$, and animation speed. Sliders take effect *mid‑run*.
 - **See it get stuck, then free it** — two presets, **Trap it** and **Free it**, reproduce the classic lesson: a small, low‑inertia swarm freezes in a local pit; a larger, higher‑inertia swarm escapes and finds the true minimum.
 - **Click‑to‑set‑target mode** — click anywhere and the selected function is *shifted* so its global minimum lands under your cursor; the swarm then chases that point (through all the local traps, if you're on Rastrigin).
+- **Explode the swarm** — give every particle a random impulse at the configured velocity limit and resume the run, keeping the best positions found so far.
 - **Read the convergence plot** — global‑best value vs. iteration on a log axis, live. A flat line is undeniable proof the swarm is stuck; a step down is the escape.
 - **Reproducible runs** — a random seed makes any "stuck" configuration repeatable for teaching.
 

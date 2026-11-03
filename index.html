@@ -232,6 +232,7 @@
       <div class="btns">
         <button class="primary" id="playBtn">▶ Play</button>
         <button id="stepBtn">Step</button>
+        <button id="explodeBtn">Explode swarm</button>
         <button id="resetBtn">Reset</button>
       </div>
       <label class="row" style="margin-top:14px;">
@@ -471,8 +472,13 @@ function stepSwarm() {
     const r1 = rng(), r2 = rng();
     const r3 = rng(), r4 = rng();
     // v = w*v + c1*r1*(pbest - x) + c2*r2*(gbest - x)
-    p.vx = w*p.vx + c1*r1*(p.px - p.x) + c2*r2*(social.x - p.x);
-    p.vy = w*p.vy + c1*r3*(p.py - p.y) + c2*r4*(social.y - p.y);
+    if (p.exploded) {
+      // Apply the impulse once before normal PSO forces resume.
+      p.exploded = false;
+    } else {
+      p.vx = w*p.vx + c1*r1*(p.px - p.x) + c2*r2*(social.x - p.x);
+      p.vy = w*p.vy + c1*r3*(p.py - p.y) + c2*r4*(social.y - p.y);
+    }
     // velocity clamp
     p.vx = Math.max(-vmax, Math.min(vmax, p.vx));
     p.vy = Math.max(-vmax, Math.min(vmax, p.vy));
@@ -733,6 +739,21 @@ playBtn.addEventListener("click", () => {
 });
 document.getElementById("stepBtn").addEventListener("click", () => {
   stepSwarm(); updateReadout();
+});
+document.getElementById("explodeBtn").addEventListener("click", () => {
+  const [x0, x1, y0, y1] = currentFn.domain;
+  const vmax = (+vmaxRange.value / 100) * Math.max(x1 - x0, y1 - y0);
+  for (const p of particles) {
+    const angle = rng() * 2 * Math.PI;
+    p.vx = vmax * Math.cos(angle);
+    p.vy = vmax * Math.sin(angle);
+    p.exploded = true;
+  }
+  acc = 0;
+  lastT = performance.now();
+  playing = true;
+  playBtn.textContent = "⏸ Pause";
+  playBtn.classList.remove("primary");
 });
 document.getElementById("resetBtn").addEventListener("click", fullReset);
 seedInput.addEventListener("change", fullReset);
