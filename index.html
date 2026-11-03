@@ -243,6 +243,7 @@
       <div class="readout">
         <div><span class="k">Iteration</span><span class="v" id="roIter">0</span></div>
         <div><span class="k">Global best z</span><span class="v" id="roBest">—</span></div>
+        <div><span class="k">Global best found at iteration</span><span class="v" id="roBestIter">—</span></div>
         <div><span class="k">Best position</span><span class="v" id="roPos">—</span></div>
         <div><span class="k">True minimum z</span><span class="v" id="roTrue">—</span></div>
       </div>
@@ -434,7 +435,7 @@ function initSwarm() {
       px: x, py: y, pbest: val,   // personal best
     };
     particles.push(p);
-    if (val < gbest.val) gbest = { x, y, val };
+    if (val < gbest.val) gbest = { x, y, val, iteration: iter };
   }
   history = [gbest.val];          // iteration 0 = best of the initial scatter
   updateReadout();
@@ -481,7 +482,7 @@ function stepSwarm() {
     // evaluate & update bests
     const val = currentFn.f(p.x, p.y);
     if (val < p.pbest) { p.pbest = val; p.px = p.x; p.py = p.y; }
-    if (val < gbest.val) { gbest = { x: p.x, y: p.y, val }; }
+    if (val < gbest.val) { gbest = { x: p.x, y: p.y, val, iteration: iter + 1 }; }
   }
   iter++;
   history.push(gbest.val);        // one point per iteration for the convergence plot
@@ -528,6 +529,7 @@ function draw(frac) {
 function updateReadout() {
   roIter.textContent = iter;
   roBest.textContent = isFinite(gbest.val) ? gbest.val.toExponential(4) : "—";
+  roBestIter.textContent = isFinite(gbest.val) ? gbest.iteration : "—";
   roPos.textContent = isFinite(gbest.val) ? `(${gbest.x.toFixed(3)}, ${gbest.y.toFixed(3)})` : "—";
   const trueZ = currentFn.f(currentFn.minima[0][0], currentFn.minima[0][1]);
   roTrue.textContent = trueZ.toExponential(2);
@@ -630,6 +632,7 @@ const convCtx = conv.getContext("2d");
 
 const roIter = document.getElementById("roIter");
 const roBest = document.getElementById("roBest");
+const roBestIter = document.getElementById("roBestIter");
 const roPos = document.getElementById("roPos");
 const roTrue = document.getElementById("roTrue");
 
@@ -684,7 +687,7 @@ function resizeSwarm() {
     particles.push({ x, y, rx0: x, ry0: y,
       vx: (rng()-0.5)*(x1-x0)*0.1, vy: (rng()-0.5)*(y1-y0)*0.1,
       px: x, py: y, pbest: val });
-    if (val < gbest.val) gbest = { x, y, val };
+    if (val < gbest.val) gbest = { x, y, val, iteration: iter };
   }
   if (particles.length > N) particles.length = N;   // shrink
   updateReadout();
@@ -713,7 +716,7 @@ view.addEventListener("click", (e) => {
   for (const p of particles) {
     const val = currentFn.f(p.x, p.y);
     p.pbest = val; p.px = p.x; p.py = p.y;
-    if (val < gbest.val) gbest = { x: p.x, y: p.y, val };
+    if (val < gbest.val) gbest = { x: p.x, y: p.y, val, iteration: iter };
   }
   updateReadout();
 });
