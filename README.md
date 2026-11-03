@@ -17,6 +17,7 @@ It is a single self‑contained `index.html` (vanilla JavaScript + HTML Canvas).
 ## What you can do
 
 - **Pick a landscape** — Sphere, Rastrigin, Ackley, Himmelblau, or Rosenbrock — shown as a top‑down color‑graded heatmap (dark valleys → bright peaks).
+- **Choose a PSO variant** — global best (gbest) or local best with a ring of two neighbors; switching takes effect on the next iteration.
 - **Tune the swarm live** — swarm size (10–1000), inertia $w$, cognitive/social pulls $c_1, c_2$, velocity clamp $V_{\max}$, and animation speed. Sliders take effect *mid‑run*.
 - **See it get stuck, then free it** — two presets, **Trap it** and **Free it**, reproduce the classic lesson: a small, low‑inertia swarm freezes in a local pit; a larger, higher‑inertia swarm escapes and finds the true minimum.
 - **Click‑to‑set‑target mode** — click anywhere and the selected function is *shifted* so its global minimum lands under your cursor; the swarm then chases that point (through all the local traps, if you're on Rastrigin).
@@ -38,6 +39,8 @@ $$
 $$
 
 where $r_1, r_2 \sim \mathcal{U}(0,1)$ are fresh random numbers each step, drawn independently per component. The velocity is clamped to $[-V_{\max}, V_{\max}]$ and positions are reflected back at the domain walls.
+
+The default global-best variant uses the best position found by the entire swarm. In the ring variant, each particle uses the best personal-best position among itself and its two adjacent particles. Neighborhood bests are taken at the start of each iteration; the readout and plot still show the best found by the entire swarm.
 
 **Reading the knobs physically:**
 

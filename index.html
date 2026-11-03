@@ -188,6 +188,14 @@
     <div class="group">
       <h2>PSO coefficients</h2>
       <label class="row">
+        <div class="lab"><span>PSO variant</span></div>
+        <select id="variantSel">
+          <option value="global">Global best (gbest)</option>
+          <option value="ring">Local best (ring topology)</option>
+        </select>
+      </label>
+      <div class="hint">Global best follows the whole swarm; ring follows the best of each particle and its two neighbors. Changes take effect on the next step.</div>
+      <label class="row">
         <div class="lab"><span>Inertia w (momentum / exploration)</span><span class="val" id="wVal">0.40</span></div>
         <input type="range" id="wRange" min="0" max="1.2" step="0.01" value="0.40" />
       </label>
@@ -196,7 +204,7 @@
         <input type="range" id="c1Range" min="0" max="3" step="0.05" value="1.50" />
       </label>
       <label class="row">
-        <div class="lab"><span>c2 — social (pull to global best)</span><span class="val" id="c2Val">1.50</span></div>
+        <div class="lab"><span>c2 — social (pull to best)</span><span class="val" id="c2Val">1.50</span></div>
         <input type="range" id="c2Range" min="0" max="3" step="0.05" value="1.50" />
       </label>
       <label class="row">
@@ -429,13 +437,21 @@ function stepSwarm() {
   const c2 = +c2Range.value;
   const vmax = (+vmaxRange.value / 100) * Math.max(x1 - x0, y1 - y0);
 
-  for (const p of particles) {
+  // Snapshot neighborhood bests so every ring particle uses the same iteration.
+  const ringBests = variantSel.value === "ring" ? particles.map((p, i) => {
+    const neighbors = [particles[(i + particles.length - 1) % particles.length], p,
+      particles[(i + 1) % particles.length]];
+    const best = neighbors.reduce((a, b) => b.pbest < a.pbest ? b : a);
+    return { x: best.px, y: best.py };
+  }) : null;
+  for (const [i, p] of particles.entries()) {
+    const social = ringBests ? ringBests[i] : gbest;
     p.rx0 = p.x; p.ry0 = p.y;   // remember where this step starts, for smooth rendering
     const r1 = rng(), r2 = rng();
     const r3 = rng(), r4 = rng();
     // v = w*v + c1*r1*(pbest - x) + c2*r2*(gbest - x)
-    p.vx = w*p.vx + c1*r1*(p.px - p.x) + c2*r2*(gbest.x - p.x);
-    p.vy = w*p.vy + c1*r3*(p.py - p.y) + c2*r4*(gbest.y - p.y);
+    p.vx = w*p.vx + c1*r1*(p.px - p.x) + c2*r2*(social.x - p.x);
+    p.vy = w*p.vy + c1*r3*(p.py - p.y) + c2*r4*(social.y - p.y);
     // velocity clamp
     p.vx = Math.max(-vmax, Math.min(vmax, p.vx));
     p.vy = Math.max(-vmax, Math.min(vmax, p.vy));
@@ -586,6 +602,7 @@ const c2Range = document.getElementById("c2Range");
 const vmaxRange = document.getElementById("vmaxRange");
 const spfRange = document.getElementById("spfRange");
 const funcSel = document.getElementById("funcSel");
+const variantSel = document.getElementById("variantSel");
 const targetMode = document.getElementById("targetMode");
 const showTrue = document.getElementById("showTrue");
 const seedInput = document.getElementById("seedInput");
