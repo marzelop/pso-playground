@@ -17,7 +17,7 @@ It is a single self‑contained `index.html` (vanilla JavaScript + HTML Canvas).
 ## What you can do
 
 - **Pick a landscape** — Sphere, Rastrigin, Ackley, Himmelblau, or Rosenbrock — shown as a top‑down color‑graded heatmap (dark valleys → bright peaks).
-- **Choose a PSO variant** — global best (gbest), local best with a ring of two neighbors, or global best with linearly decreasing inertia; switching takes effect on the next iteration.
+- **Choose a PSO variant** — global best (gbest), local best with a ring of two neighbors, global best with linearly decreasing inertia, or global best with stagnation-adaptive inertia; switching takes effect on the next iteration.
 - **Tune the swarm live** — swarm size (10–1000), inertia $w$, cognitive/social pulls $c_1, c_2$, velocity clamp $V_{\max}$, and animation speed. Sliders take effect *mid‑run*.
 - **See it get stuck, then free it** — two presets, **Trap it** and **Free it**, reproduce the classic lesson: a small, low‑inertia swarm freezes in a local pit; a larger, higher‑inertia swarm escapes and finds the true minimum.
 - **Click‑to‑set‑target mode** — click anywhere and the selected function is *shifted* so its global minimum lands under your cursor; the swarm then chases that point (through all the local traps, if you're on Rastrigin).
@@ -43,6 +43,8 @@ where $r_1, r_2 \sim \mathcal{U}(0,1)$ are fresh random numbers each step, drawn
 The default global-best variant uses the best position found by the entire swarm. In the ring variant, each particle uses the best personal-best position among itself and its two adjacent particles. Neighborhood bests are taken at the start of each iteration; the readout and plot still show the best found by the entire swarm.
 
 For linearly decreasing inertia, the inertia control sets the initial value at iteration 0. A separate minimum inertia and minimum inertia iteration determine the linear schedule: iteration $t$ uses $w(t) = w_0 + (w_{min} - w_0)\min(t / T, 1)$. The minimum cannot exceed the initial value, and inertia stays at the minimum after iteration $T$. Changes take effect on the next step using the current iteration; Reset restarts the schedule.
+
+In the stagnation-adaptive variant, the inertia control sets the base value. Each iteration without a global-best improvement increases inertia linearly toward 1.20, reaching it after 50 stagnant iterations. An improvement restores the base value on the next step. Switching variants uses the current run’s global-best history; Reset starts a fresh run.
 
 **Reading the knobs physically:**
 

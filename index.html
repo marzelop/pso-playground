@@ -193,6 +193,7 @@
           <option value="global">Global best (traditional)</option>
           <option value="ring">Local best (ring topology)</option>
           <option value="linear">Global best with linearly decreasing inertia</option>
+          <option value="adaptive">Global best with stagnation-adaptive inertia</option>
         </select>
       </label>
       <div class="hint">Global best follows the whole swarm; ring follows the best of each particle and its two neighbors. Changes take effect on the next step.</div>
@@ -211,6 +212,7 @@
         </label>
         <div class="hint">Inertia decreases from its initial value at iteration 0 to the minimum at the chosen iteration, then stays there.</div>
       </div>
+      <div id="adaptiveHint" class="hint" hidden>After each iteration without a global-best improvement, inertia rises from the configured value toward 1.20 over 50 stagnant iterations. An improvement restores the configured value on the next step.</div>
       <label class="row">
         <div class="lab"><span>c1 — cognitive (pull to own best)</span><span class="val" id="c1Val">1.50</span></div>
         <input type="range" id="c1Range" min="0" max="3" step="0.05" value="1.50" />
@@ -449,7 +451,9 @@ function stepSwarm() {
   const minimumIteration = Math.max(1, Math.floor(+minInertiaIteration.value) || 1);
   const w = variantSel.value === "linear"
     ? initialInertia + (+minInertiaRange.value - initialInertia) * Math.min((iter + 1) / minimumIteration, 1)
-    : initialInertia;
+    : variantSel.value === "adaptive"
+      ? initialInertia + (1.2 - initialInertia) * Math.min((iter - gbest.iteration) / 50, 1)
+      : initialInertia;
   const c1 = +c1Range.value;
   const c2 = +c2Range.value;
   const vmax = (+vmaxRange.value / 100) * Math.max(x1 - x0, y1 - y0);
@@ -647,7 +651,8 @@ bindLabel(minInertiaRange, document.getElementById("minInertiaVal"), v => v.toFi
 function syncInertiaControls() {
   const linear = variantSel.value === "linear";
   document.getElementById("linearControls").hidden = !linear;
-  document.getElementById("inertiaLabel").textContent = linear ? "Initial inertia w" : "Inertia w (momentum / exploration)";
+  document.getElementById("adaptiveHint").hidden = variantSel.value !== "adaptive";
+  document.getElementById("inertiaLabel").textContent = linear ? "Initial inertia w" : variantSel.value === "adaptive" ? "Base inertia w" : "Inertia w (momentum / exploration)";
   if (+minInertiaRange.value > +wRange.value) minInertiaRange.value = wRange.value;
   document.getElementById("minInertiaVal").textContent = (+minInertiaRange.value).toFixed(2);
 }
