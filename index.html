@@ -192,13 +192,25 @@
         <select id="variantSel">
           <option value="global">Global best (traditional)</option>
           <option value="ring">Local best (ring topology)</option>
+          <option value="linear">Global best with linearly decreasing inertia</option>
         </select>
       </label>
       <div class="hint">Global best follows the whole swarm; ring follows the best of each particle and its two neighbors. Changes take effect on the next step.</div>
       <label class="row">
-        <div class="lab"><span>Inertia w (momentum / exploration)</span><span class="val" id="wVal">0.40</span></div>
+        <div class="lab"><span id="inertiaLabel">Inertia w (momentum / exploration)</span><span class="val" id="wVal">0.40</span></div>
         <input type="range" id="wRange" min="0" max="1.2" step="0.01" value="0.40" />
       </label>
+      <div id="linearControls" hidden>
+        <label class="row">
+          <div class="lab"><span>Minimum inertia</span><span class="val" id="minInertiaVal">0.20</span></div>
+          <input type="range" id="minInertiaRange" min="0" max="1.2" step="0.01" value="0.20" />
+        </label>
+        <label class="row">
+          <div class="lab"><span>Minimum inertia iteration</span></div>
+          <input type="number" id="minInertiaIteration" min="1" step="1" value="100" />
+        </label>
+        <div class="hint">Inertia decreases from its initial value at iteration 0 to the minimum at the chosen iteration, then stays there.</div>
+      </div>
       <label class="row">
         <div class="lab"><span>c1 — cognitive (pull to own best)</span><span class="val" id="c1Val">1.50</span></div>
         <input type="range" id="c1Range" min="0" max="3" step="0.05" value="1.50" />
@@ -432,7 +444,11 @@ function initSwarm() {
 function stepSwarm() {
   const dom = currentFn.domain;
   const [x0, x1, y0, y1] = dom;
-  const w  = +wRange.value;
+  const initialInertia = +wRange.value;
+  const minimumIteration = Math.max(1, Math.floor(+minInertiaIteration.value) || 1);
+  const w = variantSel.value === "linear"
+    ? initialInertia + (+minInertiaRange.value - initialInertia) * Math.min((iter + 1) / minimumIteration, 1)
+    : initialInertia;
   const c1 = +c1Range.value;
   const c2 = +c2Range.value;
   const vmax = (+vmaxRange.value / 100) * Math.max(x1 - x0, y1 - y0);
@@ -603,6 +619,8 @@ const vmaxRange = document.getElementById("vmaxRange");
 const spfRange = document.getElementById("spfRange");
 const funcSel = document.getElementById("funcSel");
 const variantSel = document.getElementById("variantSel");
+const minInertiaRange = document.getElementById("minInertiaRange");
+const minInertiaIteration = document.getElementById("minInertiaIteration");
 const targetMode = document.getElementById("targetMode");
 const showTrue = document.getElementById("showTrue");
 const seedInput = document.getElementById("seedInput");
@@ -622,6 +640,21 @@ function bindLabel(rng, el, fmt) {
 }
 bindLabel(nRange, document.getElementById("nVal"), v => v);
 bindLabel(wRange, document.getElementById("wVal"), v => v.toFixed(2));
+bindLabel(minInertiaRange, document.getElementById("minInertiaVal"), v => v.toFixed(2));
+function syncInertiaControls() {
+  const linear = variantSel.value === "linear";
+  document.getElementById("linearControls").hidden = !linear;
+  document.getElementById("inertiaLabel").textContent = linear ? "Initial inertia w" : "Inertia w (momentum / exploration)";
+  if (+minInertiaRange.value > +wRange.value) minInertiaRange.value = wRange.value;
+  document.getElementById("minInertiaVal").textContent = (+minInertiaRange.value).toFixed(2);
+}
+minInertiaRange.addEventListener("input", syncInertiaControls);
+variantSel.addEventListener("change", syncInertiaControls);
+wRange.addEventListener("input", syncInertiaControls);
+minInertiaIteration.addEventListener("change", () => {
+  minInertiaIteration.value = Math.max(1, Math.floor(+minInertiaIteration.value) || 1);
+});
+syncInertiaControls();
 bindLabel(c1Range, document.getElementById("c1Val"), v => v.toFixed(2));
 bindLabel(c2Range, document.getElementById("c2Val"), v => v.toFixed(2));
 bindLabel(vmaxRange, document.getElementById("vmaxVal"), v => v + "%");
