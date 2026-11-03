@@ -6,7 +6,7 @@
 
 An interactive, tunable demonstration of **Particle Swarm Optimization (PSO)** — watch a swarm of particles hunt the minimum of a 2‑D function in real time, and *feel* how the algorithm's parameters change its behaviour.
 
-**▶ Live demo: https://panas-bhattarai.github.io/pso-playground/**
+**▶ Live demo: https://marzelop.github.io/pso-playground/**
 
 No install, no server, no sign‑up — the whole optimizer runs client‑side in your browser. Open the link and play.
 
