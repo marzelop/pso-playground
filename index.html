@@ -36,7 +36,7 @@
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
     background: #000;
   }
-  canvas#view { display: block; cursor: crosshair; }
+  canvas#view { display: block; cursor: crosshair; width: 640px; max-width: 100%; height: auto; }
   .overlay {
     position: absolute; top: 10px; left: 12px;
     font-size: 13px; line-height: 1.5;
@@ -236,6 +236,12 @@
         <button id="resetBtn">Reset</button>
       </div>
       <label class="row" style="margin-top:14px;">
+        <div class="lab"><span>Export through iteration</span></div>
+        <input type="number" id="exportIterations" min="1" step="1" value="100" />
+      </label>
+      <button id="exportBtn">Export MP4 + JPG</button>
+      <div class="hint" id="exportStatus" role="status">Export starts a new run using the current settings and seed.</div>
+      <label class="row" style="margin-top:14px;">
         <div class="lab"><span>Random seed (reproducible runs)</span></div>
         <input type="number" id="seedInput" value="1" />
       </label>
@@ -338,7 +344,7 @@ function colormap(t) {
 // ------------------------------------------------------------------
 const view = document.getElementById("view");
 const ctx = view.getContext("2d");
-const W = view.width, H = view.height;
+let W = view.width, H = view.height;
 
 let landscapeImg = null;   // cached heatmap (ImageData) — redrawn only when function changes
 let zmin = 0, zmax = 1;
@@ -505,16 +511,17 @@ function draw(frac) {
   frac = (frac === undefined) ? 1 : frac;
   if (landscapeImg) ctx.putImageData(landscapeImg, 0, 0);
   const dom = currentFn.domain;
+  const scale = W / 640;
 
   // true minima markers
   if (showTrue.checked) {
     for (const [mx, my] of currentFn.minima) {
       const [px, py] = worldToPixel(mx, my, dom);
       ctx.strokeStyle = "rgba(255,80,80,0.95)";
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(px, py, 9, 0, 2*Math.PI); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(px-13, py); ctx.lineTo(px+13, py);
-      ctx.moveTo(px, py-13); ctx.lineTo(px, py+13); ctx.stroke();
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath(); ctx.arc(px, py, 9 * scale, 0, 2*Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px-13 * scale, py); ctx.lineTo(px+13 * scale, py);
+      ctx.moveTo(px, py-13 * scale); ctx.lineTo(px, py+13 * scale); ctx.stroke();
     }
   }
 
@@ -525,13 +532,13 @@ function draw(frac) {
     const rx = p.rx0 + (p.x - p.rx0) * frac;
     const ry = p.ry0 + (p.y - p.ry0) * frac;
     const [px, py] = worldToPixel(rx, ry, dom);
-    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, 2*Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.arc(px, py, 2.5 * scale, 0, 2*Math.PI); ctx.fill();
   }
 
   // global best marker
   const [gx, gy] = worldToPixel(gbest.x, gbest.y, dom);
-  ctx.strokeStyle = "#ffd23f"; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.arc(gx, gy, 6, 0, 2*Math.PI); ctx.stroke();
+  ctx.strokeStyle = "#ffd23f"; ctx.lineWidth = 2.5 * scale;
+  ctx.beginPath(); ctx.arc(gx, gy, 6 * scale, 0, 2*Math.PI); ctx.stroke();
 
   overlay.innerHTML = `<b>${currentFn.name}</b> &nbsp; iter <b>${iter}</b> &nbsp; best z <b>${gbest.val.toExponential(2)}</b>`;
 }
@@ -602,22 +609,31 @@ let playing = false;
 let acc = 0;              // accumulated ms since last committed step
 let lastT = performance.now();
 let frameId = null;
+let exportLimit = null;
+let exportDone = null;
 function loop(now) {
   const dt = now - lastT; lastT = now;
   const interval = 1000 / (+spfRange.value);   // ms between iterations
   let frac = 1;
+  let steps = 0;
   if (playing) {
     acc += dt;
-    let steps = 0;
-    while (acc >= interval && steps < 200) {    // cap to avoid freeze after a long pause
+    while (acc >= interval && steps < 200 && (exportLimit === null || iter < exportLimit)) {    // cap to avoid freeze after a long pause
       stepSwarm(); acc -= interval; steps++;
     }
     if (steps > 0) updateReadout();
     frac = Math.min(1, acc / interval);         // partial progress toward the next step
   }
-  draw(frac);
-  drawConv();
-  frameId = requestAnimationFrame(loop);
+  const exportFinished = exportLimit !== null && iter >= exportLimit;
+  draw(exportFinished ? 1 : frac);
+  if (steps > 0) drawConv();
+  if (exportFinished) {
+    playing = false;
+    frameId = null;
+    exportDone();
+  } else {
+    frameId = requestAnimationFrame(loop);
+  }
 }
 
 function redraw() {
@@ -735,7 +751,7 @@ funcSel.addEventListener("change", () => {
 targetMode.addEventListener("change", fullReset);
 
 view.addEventListener("click", (e) => {
-  if (!targetMode.checked) return;
+  if (exporting || !targetMode.checked) return;
   const rect = view.getBoundingClientRect();
   const px = (e.clientX - rect.left) * (W / rect.width);
   const py = (e.clientY - rect.top) * (H / rect.height);
@@ -785,6 +801,105 @@ document.getElementById("explodeBtn").addEventListener("click", () => {
 });
 document.getElementById("resetBtn").addEventListener("click", fullReset);
 seedInput.addEventListener("change", fullReset);
+
+
+// Record a fresh, seeded run in real time so the video and chart share a history.
+let exporting = false;
+const exportBtn = document.getElementById("exportBtn");
+const exportStatus = document.getElementById("exportStatus");
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = name;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+function exportChart() {
+  drawConv();
+  const image = document.createElement("canvas");
+  image.width = conv.width; image.height = conv.height + 50;
+  const c = image.getContext("2d");
+  c.fillStyle = "#0b0f14"; c.fillRect(0, 0, image.width, image.height);
+  c.drawImage(conv, 0, 0);
+  const values = history.map(v => Math.log10(Math.max(v, 1e-10)));
+  let lo = Infinity, hi = -Infinity;
+  for (const value of values) { lo = Math.min(lo, value); hi = Math.max(hi, value); }
+  if (lo === hi) { lo--; hi++; }
+  lo -= 0.25; hi += 0.25;
+  const x = 52 + (history.length <= 1 ? 0 : gbest.iteration / (history.length - 1) * (conv.width - 64));
+  const y = 12 + (1 - (Math.log10(Math.max(gbest.val, 1e-10)) - lo) / (hi - lo)) * (conv.height - 34);
+  c.fillStyle = "#ffd23f"; c.beginPath(); c.arc(x, y, 5, 0, 2 * Math.PI); c.fill();
+  c.font = "16px sans-serif";
+  c.fillText(`Last global best: iteration ${gbest.iteration}  |  z = ${gbest.val.toExponential(6)}`, 12, conv.height + 30);
+  return new Promise(resolve => image.toBlob(resolve, "image/jpeg", 0.95));
+}
+exportBtn.addEventListener("click", async () => {
+  const input = document.getElementById("exportIterations");
+  const limit = Number(input.value);
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    exportStatus.textContent = "Enter a positive whole number of iterations."; return;
+  }
+  const mime = ["video/mp4;codecs=avc1.42E01E", "video/mp4"].find(type =>
+    typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type));
+  if (!mime || !view.captureStream) {
+    exportStatus.textContent = "MP4 recording is not supported by this browser. Try a browser with MP4 MediaRecorder support."; return;
+  }
+  exporting = true;
+  const controls = [...document.querySelectorAll("button, input, select")];
+  const disabled = controls.map(el => el.disabled);
+  controls.forEach(el => el.disabled = true);
+  let stream, recorder;
+  try {
+    fullReset();
+    // Render the same scene at twice the display resolution for the recording.
+    W = view.width = 1280; H = view.height = 1280;
+    renderLandscape(currentFn);
+    redraw();
+    stream = view.captureStream(60);
+    recorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12000000 });
+    const chunks = [];
+    const finished = new Promise((resolve, reject) => {
+      recorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+      recorder.onerror = e => reject(e.error || new Error("Recording failed"));
+      recorder.onstop = () => resolve(new Blob(chunks, { type: "video/mp4" }));
+    });
+    recorder.start();
+    // Hold the initial swarm on screen before starting the animation.
+    exportStatus.textContent = "Recording initial state…";
+    await Promise.race([
+      new Promise(resolve => setTimeout(resolve, 2000)),
+      finished.then(() => { throw new Error("Recording stopped unexpectedly"); })
+    ]);
+    exportLimit = limit;
+    const simulationFinished = new Promise(resolve => { exportDone = resolve; });
+    playing = true;
+    exportStatus.textContent = `Recording through iteration ${limit}…`;
+    startAnimation();
+    await Promise.race([simulationFinished, finished.then(() => { throw new Error("Recording stopped unexpectedly"); })]);
+    // Keep the final state visible in the recording.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    recorder.stop();
+    const video = await finished;
+    const chart = await exportChart();
+    if (!video.size || !chart) throw new Error("Could not create export files");
+    downloadBlob(video, "simulation.mp4");
+    downloadBlob(chart, "convergence.jpg");
+    exportStatus.textContent = `Export complete. Last global best: iteration ${gbest.iteration}, z = ${gbest.val.toExponential(6)}.`;
+  } catch (error) {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    exportStatus.textContent = `Export failed: ${error.message}`;
+  } finally {
+    playing = false;
+    stopAnimation();
+    exportLimit = null; exportDone = null;
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    W = view.width = 640; H = view.height = 640;
+    renderLandscape(currentFn);
+    controls.forEach((el, i) => el.disabled = disabled[i]);
+    exporting = false;
+    redraw();
+  }
+});
 
 // presets
 document.getElementById("presetStuck").addEventListener("click", () => {
