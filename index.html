@@ -601,6 +601,7 @@ function drawConv() {
 let playing = false;
 let acc = 0;              // accumulated ms since last committed step
 let lastT = performance.now();
+let frameId = null;
 function loop(now) {
   const dt = now - lastT; lastT = now;
   const interval = 1000 / (+spfRange.value);   // ms between iterations
@@ -616,7 +617,23 @@ function loop(now) {
   }
   draw(frac);
   drawConv();
-  requestAnimationFrame(loop);
+  frameId = requestAnimationFrame(loop);
+}
+
+function redraw() {
+  draw();
+  drawConv();
+}
+
+function startAnimation() {
+  if (frameId !== null) return;
+  lastT = performance.now();
+  frameId = requestAnimationFrame(loop);
+}
+
+function stopAnimation() {
+  if (frameId !== null) cancelAnimationFrame(frameId);
+  frameId = null;
 }
 
 // ------------------------------------------------------------------
@@ -683,6 +700,9 @@ function fullReset() {
   // landscapes (e.g. the click-target parabola) the swarm re-converges within
   // a fraction of a second, so without pausing a Reset looks like a no-op.
   playing = false;
+  stopAnimation();
+  acc = 0;
+  redraw();
   playBtn.textContent = "▶ Play";
   playBtn.classList.add("primary");
 }
@@ -702,6 +722,7 @@ function resizeSwarm() {
   }
   if (particles.length > N) particles.length = N;   // shrink
   updateReadout();
+  if (!playing) redraw();
 }
 nRange.addEventListener("input", resizeSwarm);
 
@@ -730,15 +751,21 @@ view.addEventListener("click", (e) => {
     if (val < gbest.val) gbest = { x: p.x, y: p.y, val, iteration: iter };
   }
   updateReadout();
+  if (!playing) redraw();
 });
+
+showTrue.addEventListener("change", () => { if (!playing) redraw(); });
 
 playBtn.addEventListener("click", () => {
   playing = !playing;
+  if (playing) startAnimation();
+  else { stopAnimation(); redraw(); }
   playBtn.textContent = playing ? "⏸ Pause" : "▶ Play";
   playBtn.classList.toggle("primary", !playing);
 });
 document.getElementById("stepBtn").addEventListener("click", () => {
   stepSwarm(); updateReadout();
+  if (!playing) redraw();
 });
 document.getElementById("explodeBtn").addEventListener("click", () => {
   const [x0, x1, y0, y1] = currentFn.domain;
@@ -752,6 +779,7 @@ document.getElementById("explodeBtn").addEventListener("click", () => {
   acc = 0;
   lastT = performance.now();
   playing = true;
+  startAnimation();
   playBtn.textContent = "⏸ Pause";
   playBtn.classList.remove("primary");
 });
@@ -783,8 +811,6 @@ document.getElementById("presetEscape").addEventListener("click", () => {
 
 // go
 fullReset();
-lastT = performance.now();
-requestAnimationFrame(loop);
 </script>
 </body>
 </html>
