@@ -196,7 +196,6 @@
           <option value="adaptive">Global best with stagnation-adaptive inertia</option>
         </select>
       </label>
-      <div class="hint">Global best follows the whole swarm; ring follows the best of each particle and its two neighbors. Changes take effect on the next step.</div>
       <label class="row">
         <div class="lab"><span id="inertiaLabel">Inertia w (momentum / exploration)</span><span class="val" id="wVal">0.40</span></div>
         <input type="range" id="wRange" min="0" max="1.2" step="0.01" value="0.40" />
@@ -239,7 +238,7 @@
         <div class="lab"><span>Export through iteration</span></div>
         <input type="number" id="exportIterations" min="1" step="1" value="100" />
       </label>
-      <button id="exportBtn">Export MP4 + JPG</button>
+      <button id="exportBtn">Export</button>
       <div class="hint" id="exportStatus" role="status">Export starts a new run using the current settings and seed.</div>
       <label class="row" style="margin-top:14px;">
         <div class="lab"><span>Random seed (reproducible runs)</span></div>
